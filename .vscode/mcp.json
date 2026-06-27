@@ -1,0 +1,25 @@
+{
+  "mcpServers": {
+    "tradingview": {
+      "type": "stdio",
+      "command": "node",
+      "args": [
+        "/home/rynor/tradingview-mcp/src/server.js"
+      ],
+      "env": {}
+    },
+    "kraken-mcp": {
+      "type": "stdio",
+      "command": "python",
+      "args": [
+        "-m",
+        "kraken_mcp"
+      ],
+      "env": {
+        "COMMENT": "Placeholder Kraken MCP server config. Update the command and args as needed when your Kraken MCP is ready.",
+        "KRAKEN_API_KEY": "",
+        "KRAKEN_API_SECRET": ""
+      }
+    }
+  }
+}
