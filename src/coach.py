@@ -3,6 +3,7 @@ import os
 import matplotlib.pyplot as plt
 import pandas as pd
 from datetime import datetime
+import google.generativeai as genai
 
 def generate_trading_setup(current_price, support_level, resistance_level):
     """Calculates entry, stop-loss, and take-profit targets."""
@@ -123,6 +124,103 @@ def run_coach(analysis_data):
         draw_candlestick_chart(bars, setup)
         
     return setup
+
+def answer_coach_question(question, analysis_data, setup_data):
+    """Answers user questions about the trading setup using the Gemini API or a smart fallback."""
+    # Check for Gemini API key in environment
+    api_key = os.getenv("GEMINI_API_KEY") or os.getenv("GOOGLE_API_KEY")
+    
+    if api_key and not api_key.startswith("your_"):
+        try:
+            genai.configure(api_key=api_key)
+            model = genai.GenerativeModel("gemini-2.5-flash")
+            
+            # Format strategy signals safely
+            signals = analysis_data.get("strategy_signals", {})
+            rsi_sig = signals.get("RSI", {}).get("signal", "NEUTRAL")
+            rsi_det = signals.get("RSI", {}).get("details", "")
+            macd_sig = signals.get("MACD", {}).get("signal", "NEUTRAL")
+            macd_det = signals.get("MACD", {}).get("details", "")
+            vol_sig = signals.get("Volume", {}).get("signal", "NEUTRAL")
+            vol_det = signals.get("Volume", {}).get("details", "")
+            stair_sig = signals.get("Stair-Step", {}).get("signal", "NEUTRAL")
+            stair_det = signals.get("Stair-Step", {}).get("details", "")
+
+            prompt = f"""
+You are the Coach Agent in a 3-agent Bitcoin trading system.
+Your job is to explain the current market scan and trade setup plan to the user in a friendly, educational, and plain-English tone.
+
+Current Market Data:
+- Price: ${analysis_data['current_price']:.2f}
+- Support Level: ${analysis_data['support_level']:.2f}
+- Resistance Level: ${analysis_data['resistance_level']:.2f}
+- Data Source: {analysis_data.get('source', 'Unknown')}
+
+Individual Strategy Agent Signals:
+- RSI Agent: {rsi_sig} ({rsi_det})
+- MACD Agent: {macd_sig} ({macd_det})
+- Volume Agent: {vol_sig} ({vol_det})
+- Stair-Step Agent: {stair_sig} ({stair_det})
+
+Proposed Trade Setup Plan:
+- Recommendation Bias: {setup_data['bias']}
+- Target Entry: ${setup_data['entry']:.2f}
+- Stop-Loss: ${setup_data['stop_loss']:.2f}
+- Take-Profit: ${setup_data['take_profit']:.2f}
+
+User Question: "{question}"
+
+Provide a concise, detailed, and plain-English explanation. Answer the question directly using the market data and strategy signals context. Keep it under 4 sentences if possible.
+"""
+            response = model.generate_content(prompt)
+            return response.text.strip()
+        except Exception as e:
+            print(f"Coach Agent: Gemini API call failed ({e}). Using smart fallback...", file=sys.stderr)
+            
+    # Smart pre-configured rule-based fallback
+    q_low = question.lower()
+    if "macd" in q_low:
+        return (
+            "The MACD Agent currently shows a NEUTRAL signal because we are in the skeletal phase. "
+            "Once fully implemented, the MACD Agent will scan for momentum crossovers (when the MACD line "
+            "crosses the Signal line) on the 4H/Daily chart to confirm trend strength."
+        )
+    elif "rsi" in q_low:
+        return (
+            "The RSI Agent is currently NEUTRAL. Once configured, it will detect overbought (>70) or "
+            "oversold (<30) conditions. Currently, price is inside the support/resistance range, representing "
+            "a neutral stance."
+        )
+    elif "volume" in q_low:
+        return (
+            "The Volume Agent reports NEUTRAL. In the future, this agent will analyze trading volume spikes "
+            "to check for buying or selling exhaustion near support or resistance levels."
+        )
+    elif "stair" in q_low or "step" in q_low:
+        return (
+            "The Stair-Step Agent is looking for market continuation patterns. Since it's in skeletal mode, "
+            "it reports NEUTRAL. When active, it will confirm if the market is printing higher highs/higher lows "
+            "for longs, or lower highs/lower lows for shorts."
+        )
+    elif "stop" in q_low or "loss" in q_low:
+        return (
+            f"The Stop-Loss is set at ${setup_data['stop_loss']:.2f}. "
+            f"This is positioned 1.5% outside of the trading range boundary to protect your capital. "
+            "If price breaks past this level, it invalidates our trade setup."
+        )
+    elif "take" in q_low or "profit" in q_low:
+        return (
+            f"The Take-Profit target is set at ${setup_data['take_profit']:.2f}. "
+            "This target is positioned just inside the opposite range boundary, maximizing expected returns "
+            "while ensuring a high probability of execution before the trend reverses."
+        )
+    else:
+        return (
+            f"As your Coach, I calculated a **{setup_data['bias']}** plan based on the trading range "
+            f"between ${analysis_data['support_level']:.2f} (Support) and ${analysis_data['resistance_level']:.2f} (Resistance). "
+            f"The current price is ${analysis_data['current_price']:.2f}. "
+            "Feel free to ask specific questions about 'RSI', 'MACD', 'Volume', 'Stair-Step', 'Stop-Loss', or 'Take-Profit'!"
+        )
 
 if __name__ == "__main__":
     # Test stub with sample data

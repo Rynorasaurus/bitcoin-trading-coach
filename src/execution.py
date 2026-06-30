@@ -28,14 +28,21 @@ def get_kraken_signature(urlpath, data, secret):
         print(f"Error generating API signature: {e}", file=sys.stderr)
         return None
 
-def execute_trade(pair, direction, order_type, volume, price=None, confirm=False):
-    """Executes a trade on Kraken (Sandbox or Prod) with strict confirmation checks."""
+def execute_trade(pair, direction, order_type, volume, price=None, passphrase=None):
+    """Executes a trade on Kraken (Sandbox or Prod) with strict passphrase verification."""
     print("Execution Agent: Received order request...")
     
-    # 1. Gatekeeper Check: Manual Confirmation
-    if not confirm:
-        print("Execution Agent ERROR: Trade rejected. Manual confirmation is REQUIRED but was not provided.", file=sys.stderr)
-        return {"status": "REJECTED", "error": "No manual confirmation provided."}
+    # 1. Gatekeeper Check: Cryptographic Passphrase Verification
+    correct_passphrase = os.getenv("TRADE_PASSPHRASE")
+    if not correct_passphrase:
+        print("Execution Agent ERROR: TRADE_PASSPHRASE is not set in the environment (.env).", file=sys.stderr)
+        return {"status": "REJECTED", "error": "System security passphrase is not configured."}
+        
+    if passphrase != correct_passphrase:
+        print("Access Denied: Invalid Security Passphrase", file=sys.stderr)
+        return {"status": "REJECTED", "error": "Access Denied: Invalid Security Passphrase"}
+        
+    print("Trade Authorized and Sent to Kraken Testnet")
         
     # 2. Determine Environment and load Keys
     env_mode = os.getenv("ENVIRONMENT", "sandbox").lower()
@@ -120,10 +127,14 @@ def execute_trade(pair, direction, order_type, volume, price=None, confirm=False
         return {"status": "FAILED", "error": str(e)}
 
 if __name__ == "__main__":
-    # Test 1: Try running without confirmation (should fail)
-    print("--- Test 1: No Confirmation ---")
-    execute_trade("XBTUSD", "buy", "limit", 0.01, price=50000, confirm=False)
+    # Test 1: Try running with incorrect passphrase (should fail)
+    print("--- Test 1: Incorrect Passphrase ---")
+    execute_trade("XBTUSD", "buy", "limit", 0.01, price=50000, passphrase="wrong_passphrase")
     
-    # Test 2: Try running with confirmation (should succeed in simulation mode)
-    print("\n--- Test 2: With Confirmation ---")
-    execute_trade("XBTUSD", "buy", "limit", 0.01, price=50000, confirm=True)
+    # Test 2: Try running with correct passphrase (should succeed in simulation mode)
+    print("\n--- Test 2: Correct Passphrase ---")
+    # Temporarily set a dummy passphrase for local testing if not loaded
+    if not os.getenv("TRADE_PASSPHRASE"):
+        os.environ["TRADE_PASSPHRASE"] = "your_secret_passphrase_here"
+    execute_trade("XBTUSD", "buy", "limit", 0.01, price=50000, passphrase=os.getenv("TRADE_PASSPHRASE"))
+

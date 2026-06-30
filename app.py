@@ -1,7 +1,7 @@
 import streamlit as st
 import os
 from src.analyst import run_analysis
-from src.coach import run_coach
+from src.coach import run_coach, answer_coach_question
 from src.execution import execute_trade
 
 # 1. Initialize wide layout at the very top
@@ -138,6 +138,15 @@ if st.session_state.analysis and st.session_state.setup:
         else:
             st.warning("Matplotlib chart image file not found.")
             
+        st.markdown("---")
+        st.subheader("💬 Ask the Coach")
+        user_question = st.text_input("Ask the Coach a question about this setup:", placeholder="e.g., Why did the MACD signal neutral? / Why is the Stop-Loss placed there?")
+        if user_question:
+            with st.spinner("Coach is thinking..."):
+                answer = answer_coach_question(user_question, analysis, setup)
+                st.markdown(f"**Coach Response:**")
+                st.info(answer)
+            
     with col_explain:
         bias_color = "green" if "BUY" in setup["bias"] else "red"
         st.markdown(f"### Proposed Bias: **:{bias_color}[{setup['bias']}]**")
@@ -173,40 +182,37 @@ if st.session_state.analysis and st.session_state.setup:
     st.markdown("---")
     st.subheader("🔒 3. Execution Gatekeeper Panel")
     st.markdown("""
-    The Execution Agent requires explicit manual confirmation. To authorize order placement, type the word **`CONFIRM`** in the box below and click execute.
+    The Execution Agent requires explicit manual confirmation. To authorize order placement, enter your unique cryptographic passphrase below.
     """)
     
     col_input, col_action = st.columns([2, 1])
     with col_input:
-        confirm_input = st.text_input("Security Confirmation:", placeholder="Type CONFIRM here to authorize", key="confirm_text_v2")
+        passphrase_input = st.text_input("Security Passphrase:", type="password", placeholder="Enter your trade passphrase to authorize", key="trade_passphrase_input")
     with col_action:
         st.write(" ") # Padding
         st.write(" ") # Padding
         execute_btn = st.button("🚀 Execute Trade Order", type="primary", use_container_width=True)
         
     if execute_btn:
-        if confirm_input.strip() == "CONFIRM":
-            with st.spinner("Execution Agent placing order on Kraken..."):
-                direction = "buy" if "BUY" in setup["bias"] else "sell"
-                result = execute_trade(
-                    pair="XBTUSD",
-                    direction=direction,
-                    order_type="limit",
-                    volume=0.01,
-                    price=setup["entry"],
-                    confirm=True
-                )
-                st.session_state.trade_result = result
-        else:
-            st.error("Access Denied: You must type exactly **`CONFIRM`** to run the trade.")
+        with st.spinner("Execution Agent placing order on Kraken..."):
+            direction = "buy" if "BUY" in setup["bias"] else "sell"
+            result = execute_trade(
+                pair="XBTUSD",
+                direction=direction,
+                order_type="limit",
+                volume=0.01,
+                price=setup["entry"],
+                passphrase=passphrase_input
+            )
+            st.session_state.trade_result = result
             
     # Display Order Result
     if st.session_state.trade_result:
         res = st.session_state.trade_result
         if res.get("status") in ["SUCCESS", "SUCCESS (SIMULATION)"]:
-            st.success(f"🎉 Order placed! Status: {res['status']}")
+            st.success("🎉 Trade Authorized and Sent to Kraken Testnet")
             st.json(res)
         else:
-            st.error(f"❌ Order failed: {res.get('error', 'Unknown Error')}")
+            st.error(f"❌ {res.get('error', 'Unknown Error')}")
 else:
     st.info("Run a market scan above to view the risk assessment chart, coaching explanation, and execution options.")
