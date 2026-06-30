@@ -42,7 +42,7 @@ if "trade_result" not in st.session_state:
     st.session_state.trade_result = None
 
 # Sidebar Configuration
-st.sidebar.markdown('<h2 class="terminal-header">⚙️ CORE CONTROL</h2>', unsafe_style=True)
+st.sidebar.markdown('<h2 class="terminal-header">⚙️ CORE CONTROL</h2>', unsafe_allow_html=True)
 env_mode = os.getenv("ENVIRONMENT", "sandbox").lower()
 st.sidebar.markdown(f"ENVIRONMENT: **`{env_mode.upper()}`**")
 
