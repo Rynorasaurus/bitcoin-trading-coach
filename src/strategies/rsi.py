@@ -33,17 +33,18 @@ def analyze_strategy(bars):
     
     # Signal threshold logic
     if current_rsi < 30:
-        signal = "BUY"
-        details = f"Oversold conditions detected. RSI is {current_rsi:.2f} (< 30)."
+        signal = "BULLISH"
+        explanation = f"Oversold conditions detected. RSI is {current_rsi:.2f} (< 30)."
     elif current_rsi > 70:
-        signal = "SELL"
-        details = f"Overbought conditions detected. RSI is {current_rsi:.2f} (> 70)."
+        signal = "BEARISH"
+        explanation = f"Overbought conditions detected. RSI is {current_rsi:.2f} (> 70)."
     else:
         signal = "NEUTRAL"
-        details = f"RSI is neutral at {current_rsi:.2f} (within 30-70 range)."
+        explanation = f"RSI is neutral at {current_rsi:.2f} (within 30-70 range)."
         
     return {
         "strategy": "RSI",
         "signal": signal,
-        "details": details
+        "explanation": explanation,
+        "details": explanation
     }

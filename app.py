@@ -106,12 +106,13 @@ for idx, (strat_name, strat_desc) in enumerate(strategies_def):
             details = sig_data.get("details", "")
             
             # Format signal colors
-            if signal == "BUY":
-                st.success("🟢 BUY SIGNAL")
-            elif signal == "SELL":
-                st.error("🔴 SELL SIGNAL")
+            if signal in ["BUY", "BULLISH"]:
+                st.success(f"🟢 {signal} SIGNAL")
+            elif signal in ["SELL", "BEARISH"]:
+                st.error(f"🔴 {signal} SIGNAL")
             else:
-                st.info("⚪ NEUTRAL")
+                st.info(f"⚪ {signal}")
+
                 
             st.caption(details)
         else:
