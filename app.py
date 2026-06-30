@@ -103,7 +103,7 @@ for idx, (strat_name, strat_desc) in enumerate(strategies_def):
         if st.session_state.analysis and "strategy_signals" in st.session_state.analysis:
             sig_data = st.session_state.analysis["strategy_signals"].get(strat_name, {})
             signal = sig_data.get("signal", "NEUTRAL")
-            details = sig_data.get("details", "")
+            details = sig_data.get("explanation", sig_data.get("details", ""))
             
             # Format signal colors
             if signal in ["BUY", "BULLISH"]:
