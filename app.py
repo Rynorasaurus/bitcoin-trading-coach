@@ -4,22 +4,36 @@ from src.analyst import run_analysis
 from src.coach import run_coach
 from src.execution import execute_trade
 
-# Page configuration
+# 1. Initialize wide layout at the very top
 st.set_page_config(
-    page_title="Bitcoin Trading Coach",
+    page_title="BTC Trading Coach Terminal",
     page_icon="🪙",
-    layout="centered"
+    layout="wide"
 )
 
-# Title
-st.title("🪙 Bitcoin Trading Coach")
-
-# Subtitle/Welcome
+# Custom css for a high-end trading terminal look
 st.markdown("""
-Welcome to the **Bitcoin Trading Coach** portal. This tool utilizes a 3-agent orchestration system to scan markets, plan risk boundaries, and execute orders safely.
-""")
+<style>
+    .terminal-header {
+        font-family: 'Courier New', Courier, monospace;
+        color: #00ffcc;
+        text-shadow: 0 0 10px rgba(0, 255, 204, 0.5);
+    }
+    .status-card {
+        padding: 15px;
+        border-radius: 5px;
+        background-color: #1e222b;
+        border: 1px solid #2e323d;
+        font-family: 'Courier New', Courier, monospace;
+    }
+</style>
+""", unsafe_style=True)
 
-# Initialize Session State to persist data across Streamlit reruns
+# Application Header
+st.markdown('<h1 class="terminal-header">🪙 BTC TRADING COACH TERMINAL v2.0</h1>', unsafe_style=True)
+st.markdown("---")
+
+# Session State Persistence
 if "analysis" not in st.session_state:
     st.session_state.analysis = None
 if "setup" not in st.session_state:
@@ -27,80 +41,153 @@ if "setup" not in st.session_state:
 if "trade_result" not in st.session_state:
     st.session_state.trade_result = None
 
-# Sidebar - Settings & Env info
-st.sidebar.header("⚙️ System Status")
+# Sidebar Configuration
+st.sidebar.markdown('<h2 class="terminal-header">⚙️ CORE CONTROL</h2>', unsafe_style=True)
 env_mode = os.getenv("ENVIRONMENT", "sandbox").lower()
-st.sidebar.subheader(f"Active Env: `{env_mode.upper()}`")
+st.sidebar.markdown(f"ENVIRONMENT: **`{env_mode.upper()}`**")
 
 if env_mode == "production":
-    st.sidebar.warning("⚠️ Running in PRODUCTION mode. Real funds are active!")
+    st.sidebar.error("🚨 LIVE TRADING ACTIVE - REAL FUNDS")
 else:
-    st.sidebar.info("🤖 Running in SANDBOX mode. Real funds are safe.")
+    st.sidebar.info("🤖 SANDBOX MODE ACTIVE - MOCK TRADING")
 
-# Main Action: Scan Market
-st.subheader("1. Market Scanner (Analyst & Coach)")
-if st.button("🔍 Scan Market Now", type="primary"):
-    with st.spinner("Analyst scanning BTC charts..."):
-        # Run Analyst Agent
-        analysis = run_analysis()
-        if analysis:
-            st.session_state.analysis = analysis
-            # Run Coach Agent
-            setup = run_coach(analysis)
-            st.session_state.setup = setup
-            # Reset previous trade results
-            st.session_state.trade_result = None
-            st.success("Market scan completed successfully!")
+# 2. Primary Action Button Container
+scan_container = st.container()
+with scan_container:
+    col_btn, col_stats = st.columns([1, 3])
+    with col_btn:
+        trigger_scan = st.button("⚡ SCAN MARKET NOW", type="primary", use_container_width=True)
+        if trigger_scan:
+            with st.spinner("Analyst scanning charts..."):
+                analysis = run_analysis()
+                if analysis:
+                    st.session_state.analysis = analysis
+                    setup = run_coach(analysis)
+                    st.session_state.setup = setup
+                    st.session_state.trade_result = None
+                    st.success("Scan Complete.")
+                else:
+                    st.error("Error: Scan failed.")
+
+    with col_stats:
+        if st.session_state.analysis:
+            analysis = st.session_state.analysis
+            st.markdown(f"""
+            **Current BTC Price:** `${analysis['current_price']:.2f}` | 
+            **Support Level:** `${analysis['support_level']:.2f}` | 
+            **Resistance Level:** `${analysis['resistance_level']:.2f}` | 
+            **Source:** `{analysis.get('source', 'Unknown')}`
+            """)
         else:
-            st.error("Error: Analyst Agent was unable to retrieve market data. Check your connection or API logs.")
+            st.markdown("*Waiting for market scan. Click 'Scan Market Now' to begin.*")
 
-# Display Scan Results
+st.markdown("---")
+
+# 3. 4-Column Row for Strategy Agents
+st.subheader("📡 Technical Analysis Strategy Panel")
+strat_cols = st.columns(4, border=True)
+
+strategies_def = [
+    ("RSI", "Relative Strength Index (Oversold/Overbought)"),
+    ("MACD", "Moving Average Convergence/Divergence"),
+    ("Volume", "Climax and Rejection Volume Scanner"),
+    ("Stair-Step", "Price Action Continuation Patterns")
+]
+
+for idx, (strat_name, strat_desc) in enumerate(strategies_def):
+    with strat_cols[idx]:
+        st.markdown(f"### {strat_name} Agent")
+        st.caption(strat_desc)
+        
+        # Check if we have active signals from a scan
+        if st.session_state.analysis and "strategy_signals" in st.session_state.analysis:
+            sig_data = st.session_state.analysis["strategy_signals"].get(strat_name, {})
+            signal = sig_data.get("signal", "NEUTRAL")
+            details = sig_data.get("details", "")
+            
+            # Format signal colors
+            if signal == "BUY":
+                st.success("🟢 BUY SIGNAL")
+            elif signal == "SELL":
+                st.error("🔴 SELL SIGNAL")
+            else:
+                st.info("⚪ NEUTRAL")
+                
+            st.caption(details)
+        else:
+            # 4. Placeholder blocks
+            st.metric(label="Signal Status", value="OFFLINE", delta=None)
+            st.caption("Waiting for market scanner execution...")
+
+st.markdown("---")
+
+# 5. Wider Section for Coach Visuals and Explanations
 if st.session_state.analysis and st.session_state.setup:
     analysis = st.session_state.analysis
     setup = st.session_state.setup
     
-    st.markdown("---")
-    st.subheader("📊 Scan Findings & Trading Plan")
+    st.subheader("💡 Coach Agent Risk Assessment")
     
-    # Metrics columns
-    col1, col2, col3 = st.columns(3)
-    col1.metric("Current Price", f"${analysis['current_price']:.2f}")
-    col2.metric("Support Level", f"${analysis['support_level']:.2f}")
-    col3.metric("Resistance Level", f"${analysis['resistance_level']:.2f}")
+    # Split into 2 columns: Chart on left, Text explanation on right
+    col_chart, col_explain = st.columns([2, 1])
     
-    st.info(f"Market Data Source: **{analysis.get('source', 'Unknown')}**")
-    
-    # Display Generated Candlestick Chart
-    chart_path = "src/coach_chart.png"
-    if os.path.exists(chart_path):
-        st.image(chart_path, caption="Candlestick Chart with Trade Setup Plan (Generated by Coach Agent)")
-    else:
-        st.warning("Matplotlib chart image file not found.")
+    with col_chart:
+        chart_path = "src/coach_chart.png"
+        if os.path.exists(chart_path):
+            st.image(chart_path, caption="Candlestick Chart with Trade Setup Plan (Generated by Coach Agent)")
+        else:
+            st.warning("Matplotlib chart image file not found.")
+            
+    with col_explain:
+        bias_color = "green" if "BUY" in setup["bias"] else "red"
+        st.markdown(f"### Proposed Bias: **:{bias_color}[{setup['bias']}]**")
         
-    # Trade Setup Breakdown
-    st.subheader("💡 Coach Recommendation")
-    bias_color = "green" if "BUY" in setup["bias"] else "red"
-    st.markdown(f"Proposed Bias: **:{bias_color}[{setup['bias']}]**")
-    
-    col_e, col_sl, col_tp = st.columns(3)
-    col_e.markdown(f"**Entry Target**  \n`${setup['entry']:.2f}`")
-    col_sl.markdown(f"**Stop-Loss**  \n`:${bias_color}[${setup['stop_loss']:.2f}]`")
-    col_tp.markdown(f"**Take-Profit**  \n`${setup['take_profit']:.2f}`")
-
-    # Execution Gatekeeper Panel
+        st.markdown("#### Plan Boundaries:")
+        st.write(f"🟢 **Entry Target**: `${setup['entry']:.2f}`")
+        st.write(f"🔴 **Stop-Loss**: `${setup['stop_loss']:.2f}`")
+        st.write(f"🔵 **Take-Profit**: `${setup['take_profit']:.2f}`")
+        
+        st.divider()
+        
+        # Display detailed Coach logic explanation (Tutoring aid)
+        st.markdown("#### Coaching Explanation:")
+        if "BUY" in setup["bias"]:
+            explanation = (
+                "The current price is located in the **lower half** of our identified trading range "
+                f"(${analysis['support_level']:.2f} - ${analysis['resistance_level']:.2f}). "
+                "Since price is closer to the support level, a buying opportunity presents a highly favorable "
+                "Risk-to-Reward ratio. The Stop-Loss is positioned 1.5% below support to allow room for minor "
+                "fakeouts, while the Take-Profit is set just below major resistance."
+            )
+        else:
+            explanation = (
+                "The current price is located in the **upper half** of our identified trading range "
+                f"(${analysis['support_level']:.2f} - ${analysis['resistance_level']:.2f}). "
+                "Since price is closer to the resistance level, buying is unfavorable. Instead, a short/sell setup "
+                "is proposed. The Stop-Loss is placed 1.5% above major resistance to protect capital, and the "
+                "Take-Profit target is aligned near the support level."
+            )
+        st.info(explanation)
+        
+    # Execution Panel
     st.markdown("---")
-    st.subheader("🔒 2. Execution Gatekeeper")
+    st.subheader("🔒 3. Execution Gatekeeper Panel")
     st.markdown("""
     The Execution Agent requires explicit manual confirmation. To authorize order placement, type the word **`CONFIRM`** in the box below and click execute.
     """)
     
-    confirm_input = st.text_input("Security Confirmation:", placeholder="Type CONFIRM here to authorize", key="confirm_text")
-    
-    if st.button("🚀 Execute Trade Order", type="primary"):
+    col_input, col_action = st.columns([2, 1])
+    with col_input:
+        confirm_input = st.text_input("Security Confirmation:", placeholder="Type CONFIRM here to authorize", key="confirm_text_v2")
+    with col_action:
+        st.write(" ") # Padding
+        st.write(" ") # Padding
+        execute_btn = st.button("🚀 Execute Trade Order", type="primary", use_container_width=True)
+        
+    if execute_btn:
         if confirm_input.strip() == "CONFIRM":
             with st.spinner("Execution Agent placing order on Kraken..."):
                 direction = "buy" if "BUY" in setup["bias"] else "sell"
-                # Executing a small default trade size of 0.01 BTC for sandbox/demo testing
                 result = execute_trade(
                     pair="XBTUSD",
                     direction=direction,
@@ -121,3 +208,5 @@ if st.session_state.analysis and st.session_state.setup:
             st.json(res)
         else:
             st.error(f"❌ Order failed: {res.get('error', 'Unknown Error')}")
+else:
+    st.info("Run a market scan above to view the risk assessment chart, coaching explanation, and execution options.")
