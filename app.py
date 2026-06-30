@@ -27,10 +27,10 @@ st.markdown("""
         font-family: 'Courier New', Courier, monospace;
     }
 </style>
-""", unsafe_style=True)
+""", unsafe_allow_html=True)
 
 # Application Header
-st.markdown('<h1 class="terminal-header">🪙 BTC TRADING COACH TERMINAL v2.0</h1>', unsafe_style=True)
+st.markdown('<h1 class="terminal-header">🪙 BTC TRADING COACH TERMINAL v2.0</h1>', unsafe_allow_html=True)
 st.markdown("---")
 
 # Session State Persistence
