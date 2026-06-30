@@ -2,7 +2,7 @@ import streamlit as st
 import os
 from src.analyst import run_analysis
 from src.coach import run_coach, answer_coach_question
-from src.execution import execute_trade
+from src.execution import execute_trade, get_balances, chat_with_concierge
 
 # 1. Initialize wide layout at the very top
 st.set_page_config(
@@ -182,38 +182,117 @@ if st.session_state.analysis and st.session_state.setup:
     # Execution Panel
     st.markdown("---")
     st.subheader("🔒 3. Execution Gatekeeper Panel")
-    st.markdown("""
-    The Execution Agent requires explicit manual confirmation. To authorize order placement, enter your unique cryptographic passphrase below.
-    """)
     
-    col_input, col_action = st.columns([2, 1])
-    with col_input:
-        passphrase_input = st.text_input("Security Passphrase:", type="password", placeholder="Enter your trade passphrase to authorize", key="trade_passphrase_input")
-    with col_action:
-        st.write(" ") # Padding
-        st.write(" ") # Padding
-        execute_btn = st.button("🚀 Execute Trade Order", type="primary", use_container_width=True)
+    # Initialize session state variables
+    if "concierge_unlocked" not in st.session_state:
+        st.session_state.concierge_unlocked = False
+    if "concierge_chat_history" not in st.session_state:
+        st.session_state.concierge_chat_history = []
+    if "concierge_volume" not in st.session_state:
+        st.session_state.concierge_volume = None
+    if "trade_result" not in st.session_state:
+        st.session_state.trade_result = None
         
-    if execute_btn:
-        with st.spinner("Execution Agent placing order on Kraken..."):
-            direction = "buy" if "BUY" in setup["bias"] else "sell"
-            result = execute_trade(
-                pair="XBTUSD",
-                direction=direction,
-                order_type="limit",
-                volume=0.01,
-                price=setup["entry"],
-                passphrase=passphrase_input
-            )
-            st.session_state.trade_result = result
+    # Check if unlocked
+    if not st.session_state.concierge_unlocked:
+        st.markdown("The Execution Agent is locked. Enter your cryptographic passphrase below to unlock the secure concierge and execute trades.")
+        col_lock_input, col_lock_btn = st.columns([3, 1])
+        with col_lock_input:
+            passphrase_attempt = st.text_input("Enter Passphrase:", type="password", placeholder="Enter security passphrase here...", key="lock_passphrase_input")
+        with col_lock_btn:
+            st.write(" ") # Padding
+            unlock_btn = st.button("🔓 Unlock Agent", use_container_width=True)
             
-    # Display Order Result
-    if st.session_state.trade_result:
-        res = st.session_state.trade_result
-        if res.get("status") in ["SUCCESS", "SUCCESS (SIMULATION)"]:
-            st.success("🎉 Trade Authorized and Sent to Kraken Testnet")
-            st.json(res)
-        else:
-            st.error(f"❌ {res.get('error', 'Unknown Error')}")
+        if unlock_btn or passphrase_attempt == os.getenv("TRADE_PASSPHRASE"):
+            if passphrase_attempt == os.getenv("TRADE_PASSPHRASE"):
+                st.session_state.concierge_unlocked = True
+                st.success("Access Granted: Secure Concierge Unlocked!")
+                st.rerun()
+            elif unlock_btn:
+                st.error("Access Denied: Invalid Security Passphrase")
+    else:
+        # Unlocked View
+        st.success("🔓 Secure Concierge Active")
+        
+        # 1. Available balances
+        balances = get_balances()
+        col_bal1, col_bal2, col_bal3 = st.columns(3)
+        with col_bal1:
+            st.metric("Available CAD", f"${balances['CAD']:.2f}")
+        with col_bal2:
+            st.metric("Available BTC", f"{balances['BTC']:.4f} BTC")
+        with col_bal3:
+            st.metric("Source", balances["source"])
+            
+        st.divider()
+        
+        # 2. Chat interface with the Concierge
+        st.markdown("#### Converse with the Execution Concierge to size and execute your position:")
+        
+        # Initialize default greeting if empty
+        if not st.session_state.concierge_chat_history:
+            greeting, _ = chat_with_concierge("", balances, setup, [])
+            st.session_state.concierge_chat_history.append({"role": "assistant", "content": greeting})
+            
+        # Display chat history
+        chat_container = st.container(height=300)
+        with chat_container:
+            for msg in st.session_state.concierge_chat_history:
+                with st.chat_message(msg["role"]):
+                    st.write(msg["content"])
+                    
+        # Chat input field
+        user_input = st.chat_input("Ask the Concierge / Risk % / Buy amount / Type EXECUTE")
+        
+        if user_input:
+            # Add user message to history
+            st.session_state.concierge_chat_history.append({"role": "user", "content": user_input})
+            
+            # Check for EXECUTE command
+            if user_input.strip() == "EXECUTE":
+                if st.session_state.concierge_volume and st.session_state.concierge_volume > 0:
+                    with st.spinner("Secure Concierge placing order on Kraken..."):
+                        direction = "buy" if "BUY" in setup["bias"] else "sell"
+                        result = execute_trade(
+                            pair="XBTUSD",
+                            direction=direction,
+                            order_type="limit",
+                            volume=st.session_state.concierge_volume,
+                            price=setup["entry"],
+                            passphrase=os.getenv("TRADE_PASSPHRASE")
+                        )
+                        st.session_state.trade_result = result
+                        # Append execution log to chat
+                        if result.get("status") in ["SUCCESS", "SUCCESS (SIMULATION)"]:
+                            success_msg = f"🎉 Trade Authorized and Sent to Kraken Testnet! Order simulated successfully. TxID: {result.get('txid')}"
+                            st.session_state.concierge_chat_history.append({"role": "assistant", "content": success_msg})
+                        else:
+                            fail_msg = f"❌ Execution Failed: {result.get('error', 'Unknown Error')}"
+                            st.session_state.concierge_chat_history.append({"role": "assistant", "content": fail_msg})
+                else:
+                    st.session_state.concierge_chat_history.append({
+                        "role": "assistant", 
+                        "content": "I cannot execute the trade yet because a position size has not been calculated. Please specify an amount first (e.g. 'Risk 10%' or 'Buy 0.05 BTC')."
+                    })
+            else:
+                # Chat logic
+                with st.spinner("Concierge is calculating size..."):
+                    reply, volume = chat_with_concierge(user_input, balances, setup, st.session_state.concierge_chat_history[:-1])
+                    if volume is not None:
+                        st.session_state.concierge_volume = volume
+                    st.session_state.concierge_chat_history.append({"role": "assistant", "content": reply})
+            
+            st.rerun()
+            
+        # Display trade result raw JSON underneath
+        if st.session_state.trade_result:
+            st.divider()
+            st.subheader("Receipt / Transaction JSON")
+            res = st.session_state.trade_result
+            if res.get("status") in ["SUCCESS", "SUCCESS (SIMULATION)"]:
+                st.success("🎉 Transaction Completed")
+                st.json(res)
+            else:
+                st.error(f"❌ Transaction Rejected: {res.get('error')}")
 else:
     st.info("Run a market scan above to view the risk assessment chart, coaching explanation, and execution options.")
